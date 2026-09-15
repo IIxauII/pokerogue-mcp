@@ -110,6 +110,21 @@ summary {"kind":"battle","wave":89,"verdict":"fight","field":"Charizard Air Slas
 == single (mini)
 🎯 W89 + {Expand} × {Close}
 ⚔ Charizard Flying Air Slash → Ninetales 3 hits
+queued during prediction: 0; queueMessage restored: true
+== tera (full)
+🎯 W89 · Tester Charizard − {Minimal overview} × {Close}
+⚔ Charizard 💀 Rock ×4 100% {Lycanroc's Stone Edge: ~100% of current HP, before it can act} Fire Flamethrower → Lycanroc 1 hit
+Lycanroc Lycanroc L70 Steel TERA 100% ▲ Fire ↯ Rock Stone Edge → Charizard 100% likely · moves first
+♟ Fight plan likely lost
+☠ Lycanroc Lycanroc KOs 1/1 · win condition
+🛡 Charizard save for Lycanroc ~100%/turn · KO'd first
+1 Charizard Fire Flamethrower → Lycanroc falls · foe at 100%
+⚠ likely lost: nobody outspeeds Lycanroc and it KOs 1 of 1 — maximise damage before it comes in, keep Charizard healthy
+summary {"kind":"battle","wave":89,"verdict":"trainer","field":"Charizard Flamethrower → Lycanroc · 1 hit","danger":[{"mon":"Charizard","from":"Lycanroc","move":"Stone Edge"}],"learn":null,"rewards":null}
+== tera (mini)
+🎯 W89 · Tester Charizard + {Expand} × {Close}
+⚔ Charizard 💀 Rock ×4 100% {Lycanroc's Stone Edge: ~100% of current HP, before it can act} Fire Flamethrower → Lycanroc 1 hit
+♟ likely lost · ☠ Lycanroc · 1 step + {Show the fight plan}
 == trap (full)
 🎯 W89 ⚔ Charizard Flamethrower → Pineco · 1 hit ⚠ Sturdy + {Show details} × {Close}
 summary {"kind":"battle","wave":89,"verdict":"easy","field":"Charizard Flamethrower → Pineco · 1 hit","danger":[],"learn":null,"rewards":null}

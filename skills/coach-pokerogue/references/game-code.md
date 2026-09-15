@@ -453,6 +453,9 @@ The HUD's `predictSwitches` matches this rule. Gaps:
   **safe unsandboxed**. TeraPhase runs at TurnStart before any move (`isTerastallized=true`, `summonData.addedType=null`),
   so this turn the enemy defends with `[getTeraType()]` and gets Tera STAB. To model with game code, set
   `e.isTerastallized=true` (and restore) inside the sandbox around damage calls into/out of it.
+  The HUD does that for the whole refresh (`withPredictedTera` in 20-enemy-ai, applied in `model`), so every damage,
+  threat and team-plan number is post-Tera. EnemyCommandPhase runs **before** TeraPhase, so the AI's own choices —
+  `enemyMoveDistribution`, `predictSwitches` — are computed with the flag taken back off (`beforeTera`).
 - Move-queue locked (charging, Outrage, Uproar, Bide, Rollout…) → never switches, repeats the queued move.
 
 ---
@@ -571,6 +574,9 @@ then orbs). HUD: `endOfTurnHp`.
   Struggle / Encore / aiType 0,1,2; Protect branch). Cache per turn key.
 - `predictSwitches(s, b, active)` — keep, run in `sandbox`, fix doubles counter sequencing, skip Commander `skipTurn`.
 - `enemyAction(s, e)` → `{ kind: 'switch', to } | { kind: 'move', dist, tera: tr?.shouldTera(e) ?? false }`.
+- `predictedTeras(s, b)` → the active foes whose action this turn Terastallizes; `withPredictedTera(mons, fn)` runs
+  `fn` with `isTerastallized` set (and `summonData.addedType` cleared) on them, `beforeTera(fn)` takes it back off,
+  `teraTypeOf(e)` names the type for the panel.
 
 ### Planner (30-planner.js)
 - `actionOrder(s, a, aMove, b, bMove)` → `P(a acts before b)`: switches first; else compare

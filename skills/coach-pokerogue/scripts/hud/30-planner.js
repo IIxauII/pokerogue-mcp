@@ -24,7 +24,7 @@ const planMemo = (s, k, fn) => {
   const b = s.currentBattle;
   const mons = [...(s.getPlayerParty?.() ?? []), ...(s.getEnemyParty?.() ?? [])];
   const key = [b?.waveIndex, b?.turn, b?.enemySwitchCounter, awaitingDecision(s),
-    ...mons.map(p => p && `${p.id}:${p.hp}:${p.bossSegmentIndex ?? ""}:${p.isOnField?.() ? 1 : 0}`)].join("|");
+    ...mons.map(p => p && `${p.id}:${p.hp}:${p.bossSegmentIndex ?? ""}:${p.isOnField?.() ? 1 : 0}:${p.isTerastallized ? 1 : 0}`)].join("|");
   if (plannerMemo.key !== key) plannerMemo = { key, map: new Map() };
   if (!plannerMemo.map.has(k)) plannerMemo.map.set(k, fn());
   return plannerMemo.map.get(k);
@@ -134,7 +134,9 @@ const likelyMoves = (s, foe, me, outs, next) => {
           if (typeof ts[0] === "object") tp = o?.spread ? 1 : idx == null ? ts.reduce((t, x) => t + (x.p ?? 0), 0) / 2 : ts.find(x => x.battlerIndex === idx)?.p ?? 0;
           else tp = o?.spread ? (idx == null || ts.includes(idx) ? 1 : 0) : idx == null ? 1 / 2 : ts.includes(idx) ? 1 / ts.length : 0;
         }
-        return { o, name: d.name, type: d.type ?? o?.type, p: d.p * tp };
+        // The outcome's type is the one the move lands with (Tera Blast becomes the Tera type); the AI scored it
+        // before Terastallizing, so its own row's type can be stale.
+        return { o, name: d.name, type: o?.type ?? d.type, p: d.p * tp };
       });
     }
   }
@@ -1032,8 +1034,11 @@ const duel = (s, me, foe, partnered = false) => {
 
 // Plain data for one refresh. Its JSON is the change signature, so the DOM is
 // only rebuilt when something the panel shows has actually changed.
-// While the game waits for a command, the whole refresh runs in one sandbox (every game call it makes).
-const model = (s, b, party, foes) => (plannerReady(s) ? sandbox(s, () => battleModel(s, b, party, foes)) : battleModel(s, b, party, foes));
+// While the game waits for a command, the whole refresh runs in one sandbox (every game call it makes), with the
+// foes that Terastallize this turn flagged so every damage number is the post-Tera one (spec §7).
+const model = (s, b, party, foes) => (plannerReady(s)
+  ? sandbox(s, () => withPredictedTera(predictedTeras(s, b), () => battleModel(s, b, party, foes)))
+  : battleModel(s, b, party, foes));
 const battleModel = (s, b, party, foes) => {
   const onField = foes.filter(f => f.isOnField?.());
   const active = (onField.length ? onField : foes).slice(0, b.double ? 2 : 1);
@@ -1094,7 +1099,7 @@ const battleModel = (s, b, party, foes) => {
     const bars = bossBarsLeft(vs);
     const n = p?.mine ? hitCounts(p.mine) : null;
     return {
-      icon: iconOf(foe), name: foe.name, lv: foe.level, types: typesOf(foe),
+      icon: iconOf(foe), name: foe.name, lv: foe.level, types: typesOf(foe), tera: teraTypeOf(foe),
       abilities: abilitiesOf(foe), boss: !!foe.isBoss?.(), status: foe.status?.effect ?? 0,
       hp: Math.round(foe.hp / foe.getMaxHp() * 100),
       weak, avoid,

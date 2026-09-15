@@ -9,7 +9,7 @@ const src = (() => {
   const full = bundle("hud");
   const from = full.indexOf("// ---- 20-enemy-ai.js");
   const at = from + 1 + full.slice(from + 1).search(/\n\/\/ ---- [\w-]+\.js\n/);
-  return `${full.slice(0, at)}\nglobalThis.__ai = { enemyMoveDistribution, enemyAction, predictSwitches, aiChain, sandboxBreaches: () => sandboxBreaches };\n})();\n`;
+  return `${full.slice(0, at)}\nglobalThis.__ai = { enemyMoveDistribution, enemyAction, predictSwitches, aiChain, predictedTeras, withPredictedTera, teraTypeOf, sandboxBreaches: () => sandboxBreaches };\n})();\n`;
 })();
 
 const calls = { game: 0 };
@@ -240,6 +240,40 @@ for (const [slot0Best, expect] of [[10, ["e0"]], [1, ["e1"]]]) {
   const ai = setup({ player, enemy: [tatsu, dozo, mkMon({ id: "b", player: false })], double: true, trainer });
   const act = ai.enemyAction(scene, tatsu);
   assert.deepEqual([act.kind, act.skip, act.dist], ["move", true, []]);
+}
+
+// Predicted Tera: the flag is on for the caller's work and off again afterwards, and every prediction is still
+// computed pre-Tera (the AI commands before TeraPhase runs).
+{
+  const e = mkMon({ id: "e", player: false, fieldIndex: 0, moves: [{ id: 1, name: "A", target: -10 }, { id: 2, name: "B" }] });
+  e.getTeraType = () => 8; // Steel
+  e.summonData.addedType = 11;
+  const bench = mkMon({ id: "b", player: false });
+  const trainer = {
+    config: { isBoss: false }, shouldTera: m => m.id === "e",
+    getPartyMemberMatchupScores: () => [[1, 1]], getSortedPartyMemberMatchupScores: sc => sc, getNextSummonIndex: () => 1,
+  };
+  const ai = setup({ player: [foe()], enemy: [e, bench], trainer });
+  assert.deepEqual(ai.predictedTeras(scene, scene.currentBattle).map(m => m.id), ["e"]);
+
+  const seenAi = [], seenSwitch = [];
+  e.getMoveType = mv => (seenAi.push(!!e.isTerastallized), mv.type);
+  e.getMatchupScore = () => (seenSwitch.push(!!e.isTerastallized), 1);
+  const inside = ai.withPredictedTera([e], () => {
+    assert.equal(e.isTerastallized, true, "flag on inside");
+    assert.equal(e.summonData.addedType, null, "TeraPhase clears an added type");
+    assert.equal(ai.teraTypeOf(e), "Steel");
+    e.hp = 90; // a fresh turn key, so both predictions are really recomputed under the flag
+    ai.enemyMoveDistribution(scene, e);
+    ai.predictSwitches(scene, scene.currentBattle, [e]);
+    return "ok";
+  });
+  assert.equal(inside, "ok");
+  assert.ok(seenAi.length && seenAi.every(x => x === false), "AI move choice is made pre-Tera");
+  assert.ok(seenSwitch.length && seenSwitch.every(x => x === false), "switch choice is made pre-Tera");
+  assert.equal(e.isTerastallized, undefined, "flag restored");
+  assert.equal(e.summonData.addedType, 11, "added type restored");
+  assert.equal(ai.teraTypeOf(e), null, "no Tera predicted outside the wrapper");
 }
 
 console.log("enemy AI: all assertions passed");

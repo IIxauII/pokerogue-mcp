@@ -9,6 +9,15 @@ const mon = (name, lv, types, ability, [hp, atk, def, spa, spd, spe], moves, fie
   getIconAtlasKey: () => "k", getIconId: () => 1, status: null,
   moveset: moves.map(([n, t, p, c, target = 3]) => ({ getName: () => n, getMove: () => ({ type: TY.indexOf(t), power: p, category: cat[c], moveTarget: target }), getMovePp: () => 10, ppUsed: 0 })),
 });
+// A mon whose types follow its Tera flag, the way the game's getTypes does once TeraPhase has run.
+const teraMon = (...args) => {
+  const teraType = TY.indexOf(args.pop());
+  const p = mon(...args);
+  const base = p.getTypes();
+  p.getTeraType = () => teraType;
+  p.getTypes = () => (p.isTerastallized ? [teraType] : base);
+  return p;
+};
 const party = [
   mon("Charizard", 66, ["Fire","Flying"], "Blaze", [190,125,118,160,128,148], [["Heat Wave","Fire",95,"S",6],["Flare Blitz","Fire",120,"P"],["Air Slash","Flying",75,"S"],["Flamethrower","Fire",90,"S"]], true),
   mon("Venusaur", 65, ["Grass","Poison"], "Overgrow", [200,135,122,144,144,118], [["Double-Edge","Normal",120,"P"],["Power Whip","Grass",120,"P"]], true),
@@ -46,6 +55,11 @@ const scenarios = {
     foes: [mon("Aurorus", 66, ["Rock","Ice"], "Refrigerate", [230,90,110,150,120,100], [["Ice Beam","Ice",90,"S"]], true)] },
   single: { double: false, party, foes: [mon("Ninetales", 72, ["Fire"], "Flash Fire", [188,90,100,130,140,130], [["Flamethrower","Fire",90,"S"],["Extrasensory","Psychic",80,"S"]], true)] },
   // A trap the planned move runs into goes on the slot line (collapsed and mini): a 1-hit KO into Sturdy.
+  // A trainer mon that Terastallizes before it moves: the panel plans against the Tera type (Steel here, so
+  // Flamethrower is super effective and Stone Edge loses its STAB), and marks the row TERA.
+  tera: { double: false, trainer: { isBoss: false }, teras: ["Lycanroc"], party: [
+    mon("Charizard", 66, ["Fire","Flying"], "Blaze", [190,125,118,160,128,120], [["Flamethrower","Fire",90,"S"],["Air Slash","Flying",75,"S"]], true, 120)],
+    foes: [teraMon("Lycanroc", 70, ["Rock"], "Keen Eye", [200,190,100,80,90,140], [["Stone Edge","Rock",100,"P"]], true, "Steel")] },
   trap: { double: false, party: [
     mon("Charizard", 66, ["Fire","Flying"], "Blaze", [190,125,118,160,128,148], [["Flamethrower","Fire",90,"S"]], true)],
     foes: [mon("Pineco", 20, ["Bug"], "Sturdy", [60,50,80,30,30,20], [["Tackle","Normal",40,"P"]], true)] },
@@ -67,7 +81,7 @@ for (const [label, sc] of Object.entries(scenarios)) {
     const trainer = sc.trainer ? { getName: () => "Tester", config: sc.trainer, isDouble: () => false,
       getPartyMemberMatchupScores: () => { pm.queueMessage("side effect"); return sc.foes.slice(1).map((f, i) => [i + 1, 5]); },
       getSortedPartyMemberMatchupScores: sc2 => sc2.slice().sort((a, b) => b[1] - a[1]),
-      getNextSummonIndex: () => 1 } : null;
+      getNextSummonIndex: () => 1, shouldTera: e => !!sc.teras?.includes(e.name) } : null;
     const scene = { phaseManager: pm, getField: () => [...onField(), ...sc.foes.filter(f => f.isOnField())], currentBattle: { waveIndex: 89, turn: 1, double: sc.double, enemySwitchCounter: 0, getBattlerCount: () => (sc.double ? 2 : 1), trainer }, ui: { getMode: () => 0, getHandler: () => ({}) }, getPlayerParty: () => sc.party, getEnemyParty: () => sc.foes };
     globalThis.Phaser = { Math: { RND: { _s: "!rnd,0", state(v) { if (v !== undefined) this._s = v; return this._s; } } }, Display: { Canvas: { CanvasPool: { pool: [{ parent: { game: { scene: { getScene: () => scene }, textures: { exists: () => false } } } }] } } } };
     const node = () => { const n = { style: {}, children: [], addEventListener(ev, fn) { if (ev === "click") n.onclick = fn; }, remove() {}, append(...k) { n.children.push(...k); }, replaceChildren(...k) { n.kids = k; } }; return n; };

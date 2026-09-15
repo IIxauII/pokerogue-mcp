@@ -333,6 +333,9 @@ const drawBattle = m => {
         h("span", { fontWeight: "bold" }, r.name),
         h("span", dim, `L${r.lv}`),
         ...r.types.map(t => badge(t)),
+        // It Terastallizes before it moves this turn, so the types, weaknesses and damage above are already its
+        // Tera type's.
+        r.tera ? h("span", { color: "#c9f", fontSize: "9px", marginRight: "3px" }, "TERA") : null,
         r.boss ? "👑" : null,
         STATUS_FRAMES[r.status] ? img("statuses", STATUS_FRAMES[r.status], STATUS_FRAMES[r.status], 10, null) : null,
         h("span", { flex: "1" }),

@@ -282,9 +282,43 @@ const enemyMoveDistribution = (s, e) => {
   if (!awaitingCommand(s)) return approxDistribution(e);
   if (moveCache.key !== key) moveCache = { key, wave: b.waveIndex, turn: b.turn, value: new Map() };
   let dist;
-  try { dist = sandbox(s, () => forcedRng(s, () => aiDistribution(s, e))); } catch { dist = approxDistribution(e); }
+  try { dist = beforeTera(() => sandbox(s, () => forcedRng(s, () => aiDistribution(s, e)))); } catch { dist = approxDistribution(e); }
   moveCache.value.set(e.id, dist);
   return dist;
+};
+
+// ---- Predicted Terastallization (spec §7)
+// TeraPhase runs at TurnStart, before any move, so a trainer mon that Terastallizes this turn already defends with
+// [getTeraType()] and gets Tera STAB by the time damage is dealt. The game computes all of that itself once
+// `isTerastallized` is set (TeraPhase also clears an added type), so the planner runs its whole refresh with the
+// flag set on the foes that will Tera, inside its sandbox, and restores it afterwards.
+// The AI's own choices came first (EnemyCommandPhase runs before TeraPhase), so every prediction here is computed
+// with the flag taken back off — `beforeTera`.
+const teraSaved = new Map(); // mon → its pre-Tera { isTerastallized, addedType }
+const teraOn = (e, on) => {
+  e.isTerastallized = on ? true : teraSaved.get(e).isTerastallized;
+  if (e.summonData) e.summonData.addedType = on ? null : teraSaved.get(e).addedType;
+};
+const withPredictedTera = (mons, fn) => {
+  const fresh = mons.filter(e => e && !teraSaved.has(e));
+  for (const e of fresh) {
+    teraSaved.set(e, { isTerastallized: e.isTerastallized, addedType: e.summonData?.addedType ?? null });
+    teraOn(e, true);
+  }
+  try { return fn(); } finally { for (const e of fresh) { teraOn(e, false); teraSaved.delete(e); } }
+};
+const beforeTera = fn => {
+  const on = [...teraSaved.keys()];
+  for (const e of on) teraOn(e, false);
+  try { return fn(); } finally { for (const e of on) teraOn(e, true); }
+};
+const isTeraPredicted = e => teraSaved.has(e);
+const teraTypeOf = e => { try { return isTeraPredicted(e) ? TYPES[e.getTeraType?.()] ?? null : null; } catch { return null; } };
+// The foes that Terastallize before they move this turn: on the field, acting, and the trainer says so.
+const predictedTeras = (s, b) => {
+  if (!b?.trainer?.shouldTera) return [];
+  const active = (s.getEnemyParty?.() ?? []).filter(p => p.isOnField?.()).slice(0, b.double ? 2 : 1);
+  return active.filter(e => { try { return enemyAction(s, e).tera; } catch { return false; } });
 };
 
 // Commander: a Tatsugiri inside its Dondozo (and mystery encounters that skip enemy turns) gets its command
@@ -308,7 +342,7 @@ const predictSwitches = (s, b, active) => {
   const enemies = s.getEnemyParty();
   const slots = [...active].sort((x, y) => (x.getFieldIndex?.() ?? 0) - (y.getFieldIndex?.() ?? 0));
   let counter = b.enemySwitchCounter ?? 0;
-  sandbox(s, () => {
+  beforeTera(() => sandbox(s, () => {
     for (const e of slots) {
       let switched = false;
       try {
@@ -329,7 +363,7 @@ const predictSwitches = (s, b, active) => {
       } catch {}
       counter = switched ? counter + 1 : Math.max(counter - 1, 0);
     }
-  });
+  }));
   switchCache = { key, wave: b.waveIndex, turn: b.turn, value: out };
   return out;
 };
